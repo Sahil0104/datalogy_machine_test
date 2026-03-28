@@ -116,6 +116,7 @@
             const formMessage = $('#formMessage');
             const tableMessage = $('#tableMessage');
             const totalUserCount = $('#totalUserCount');
+            const userActionUrlTemplate = @json(url('/users/__ID__'));
 
             const usersTable = $('#usersTable').DataTable({
                 ajax: '{{ route('users.list') }}',
@@ -157,6 +158,47 @@
                 target.removeClass('error success').hide().text('');
             }
 
+            function clearFieldErrors() {
+                form.find('label.error').remove();
+                form.find('input').removeClass('input-error');
+            }
+
+            function showFieldError(fieldName, message) {
+                const field = form.find(`[name="${fieldName}"]`);
+                field.after(`<label class="error">${message}</label>`);
+            }
+
+            function validateUserForm() {
+                hideMessage(formMessage);
+                clearFieldErrors();
+
+                const firstName = $('#modal_first_name').val().trim();
+                const lastName = $('#modal_last_name').val().trim();
+                const email = $('#modal_email').val().trim();
+                const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                let isValid = true;
+
+                if (!firstName) {
+                    showFieldError('first_name', 'First name is required.');
+                    isValid = false;
+                }
+
+                if (!lastName) {
+                    showFieldError('last_name', 'Last name is required.');
+                    isValid = false;
+                }
+
+                if (!email) {
+                    showFieldError('email', 'Email is required.');
+                    isValid = false;
+                } else if (!emailPattern.test(email)) {
+                    showFieldError('email', 'Enter a valid email address.');
+                    isValid = false;
+                }
+
+                return isValid;
+            }
+
             function refreshStats() {
                 $.get('{{ route('users.list') }}', function (response) {
                     totalUserCount.text(response.data.length);
@@ -166,7 +208,7 @@
             function openModal(mode, user = null) {
                 hideMessage(formMessage);
                 form[0].reset();
-                form.validate().resetForm();
+                clearFieldErrors();
 
                 if (mode === 'edit' && user) {
                     $('#modalTitle').text('Edit User');
@@ -188,25 +230,6 @@
                 modal.fadeOut(150);
             }
 
-            form.validate({
-                rules: {
-                    first_name: { required: true },
-                    last_name: { required: true },
-                    email: { required: true, email: true }
-                },
-                messages: {
-                    first_name: 'First name is required.',
-                    last_name: 'Last name is required.',
-                    email: {
-                        required: 'Email is required.',
-                        email: 'Enter a valid email address.'
-                    }
-                },
-                errorPlacement: function(error, element) {
-                    error.insertAfter(element);
-                }
-            });
-
             $('#openAddUserModal').on('click', function () {
                 openModal('add');
             });
@@ -220,13 +243,13 @@
             $('#saveUserBtn').on('click', function () {
                 hideMessage(formMessage);
 
-                if (!form.valid()) {
+                if (!validateUserForm()) {
                     return;
                 }
 
                 const userId = $('#user_id').val();
                 const isEdit = !!userId;
-                const url = isEdit ? `/users/${userId}` : '{{ route('users.store') }}';
+                const url = isEdit ? userActionUrlTemplate.replace('__ID__', userId) : '{{ route('users.store') }}';
                 const type = isEdit ? 'PUT' : 'POST';
 
                 $.ajax({
@@ -258,7 +281,7 @@
                 }
 
                 $.ajax({
-                    url: `/users/${$(this).data('id')}`,
+                    url: userActionUrlTemplate.replace('__ID__', $(this).data('id')),
                     type: 'DELETE',
                     success: function (response) {
                         showMessage(tableMessage, 'success', response.message);
